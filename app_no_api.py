@@ -38,12 +38,28 @@ SCOPES = [
     'https://www.googleapis.com/auth/userinfo.profile'
 ]
 
+# ฟังก์ชันตรวจสอบ Config และ Redirect URI
+def get_google_config():
+    """ดึงข้อมูล Config สำหรับ OAuth จาก Secrets (Cloud) หรือ JSON (Local)"""
+    if "web" in st.secrets:
+        return st.secrets["web"]
+    
+    if os.path.exists(CLIENT_SECRETS_FILE):
+        with open(CLIENT_SECRETS_FILE, "r") as f:
+            data = json.load(f)
+            return data.get("web", data.get("installed"))
+    return None
+
 # ตรวจสอบ Environment เพื่อตั้งค่า Redirect URI (Local vs Cloud)
+config = get_google_config()
 if os.getenv('STREAMLIT_SERVER_ADDRESS') == 'localhost' or os.getenv('STREAMLIT_SERVER_ADDRESS') is None:
     REDIRECT_URI = "http://localhost:8501"
 else:
-    # ดึงค่า Redirect URL จาก Secrets ที่ตั้งไว้บน Cloud
-    REDIRECT_URI = st.secrets.get("web", {}).get("redirect_url", "https://chinavut-marketing-tor-auditor.streamlit.app")
+    # ดึงค่า Redirect URL จาก Secrets ที่ตั้งไว้บน Cloud (ถ้าไม่มีจะใช้ลิ้งก์มาตรฐานของคุณ)
+    if "web" in st.secrets and "redirect_url" in st.secrets["web"]:
+        REDIRECT_URI = st.secrets["web"]["redirect_url"]
+    else:
+        REDIRECT_URI = "https://chinavut-marketing-tor-auditor.streamlit.app"
 
 
 # --- Custom CSS (ตกแต่งหน้าตาให้สวยงามและเป็นระเบียบ) ---
@@ -175,20 +191,6 @@ st.markdown("""
 # ==========================================
 # 🔐 2. ส่วนจัดการระบบ Login (Google OAuth)
 # ==========================================
-def get_google_config():
-    """ดึงข้อมูล Config สำหรับ OAuth"""
-    # กรณี 1: ตรวจสอบใน Streamlit Secrets (สำหรับ Cloud)
-    if "web" in st.secrets:
-        return st.secrets["web"]
-    
-    # กรณี 2: ตรวจสอบจากไฟล์ Local JSON
-    if os.path.exists(CLIENT_SECRETS_FILE):
-        with open(CLIENT_SECRETS_FILE, "r") as f:
-            data = json.load(f)
-            return data.get("web", data.get("installed"))
-    
-    return None
-
 def check_login():
     """ฟังก์ชันหลักสำหรับตรวจสอบสถานะการเข้าสู่ระบบ"""
     config = get_google_config()
@@ -200,7 +202,7 @@ def check_login():
     if 'credentials' not in st.session_state:
         st.session_state.credentials = None
 
-    # จัดการกรณี Google ส่ง Auth Code กลับมาทาง URL
+    # จัดการกรณี Google ส่ง Auth Code กลับมาทาง URL (Callback)
     if st.query_params.get('code'):
         try:
             flow = Flow.from_client_config(
@@ -226,7 +228,6 @@ def check_login():
             
             # ตรวจสอบและฝังโลโก้บริษัท
             if os.path.exists("logo.png"):
-                import base64
                 with open("logo.png", "rb") as f:
                     encoded_img = base64.b64encode(f.read()).decode("utf-8")
                 login_box_html += f'<img src="data:image/png;base64,{encoded_img}" class="login-logo-img">'
@@ -518,7 +519,7 @@ if start_process:
                         st.dataframe(final_df, use_container_width=True)
                         
                 else:
-                    st.error("❌ รูปแบบข้อมูลผิดพลาด: โค้ดที่วางต้องเป็นรูปแบบ List [...]")
+                    st.error("❌ รูปแบบข้อมูลไม่ถูกต้อง: โค้ดที่วางต้องเป็นรูปแบบ List [...]")
             except Exception as error:
                 st.error(f"❌ เกิดข้อผิดพลาดทางเทคนิค: {error}")
                 st.info("💡 ข้อแนะนำ: ตรวจสอบว่าก๊อปปี้โค้ดมาจาก Gemini ครบถ้วนหรือไม่ (ต้องมีวงเล็บก้ามปูเปิดและปิด [])")
