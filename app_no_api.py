@@ -59,7 +59,7 @@ config_data = get_google_config()
 if os.getenv('STREAMLIT_SERVER_ADDRESS') == 'localhost' or os.getenv('STREAMLIT_SERVER_ADDRESS') is None:
     REDIRECT_URI = "http://localhost:8501"
 else:
-    # ดึงค่า Redirect URL จาก Secrets ที่ตั้งไว้บน Cloud (หากไม่มีจะใช้ค่ามาตรฐานของคุณ)
+    # ดึงค่า Redirect URL จาก Secrets ที่ตั้งไว้บน Cloud
     if "web" in st.secrets and "redirect_url" in st.secrets["web"]:
         REDIRECT_URI = st.secrets["web"]["redirect_url"]
     else:
@@ -233,7 +233,6 @@ def check_login():
             
             # ตรวจสอบและฝังโลโก้บริษัท
             if os.path.exists("logo.png"):
-                import base64
                 with open("logo.png", "rb") as f:
                     encoded_img = base64.b64encode(f.read()).decode("utf-8")
                 login_box_html += f'<img src="data:image/png;base64,{encoded_img}" class="login-logo-img">'
@@ -262,6 +261,7 @@ def check_login():
                 login_box_html += f'<p style="color: #d32f2f;">การตั้งค่าความปลอดภัยผิดพลาด: {e}</p>'
             
             login_box_html += "</div>"
+            # ใช้ st.markdown เพียงครั้งเดียวหลังประกอบ HTML เสร็จเพื่อป้องกันปัญหา Indentation
             st.markdown(login_box_html, unsafe_allow_html=True)
         st.stop()
 
@@ -525,7 +525,7 @@ if start_process:
                         st.dataframe(final_df, use_container_width=True)
                         
                 else:
-                    st.error("❌ รูปแบบข้อมูลไม่ถูกต้อง: โค้ดที่วางต้องเป็นรูปแบบ List [...]")
+                    st.error("❌ รูปแบบข้อมูลไม่ถูกต้อง: ต้องเป็น List [...] เท่านั้น (ลองตรวจสอบโค้ดที่ได้จาก Gemini อีกครั้ง)")
             except Exception as error:
                 st.error(f"❌ เกิดข้อผิดพลาดทางเทคนิค: {error}")
                 st.info("💡 ข้อแนะนำ: ตรวจสอบว่าก๊อปปี้โค้ดมาจาก Gemini ครบถ้วนหรือไม่ (ต้องมีวงเล็บก้ามปูเปิดและปิด [])")
