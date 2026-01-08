@@ -43,7 +43,6 @@ def get_google_config():
     """ดึงข้อมูล Config สำหรับ OAuth จาก Secrets (Cloud) หรือ JSON (Local)"""
     # 1. ตรวจสอบใน Streamlit Secrets ก่อน (สำหรับ Cloud)
     if "web" in st.secrets:
-        # แปลงจาก Streamlit Secret เป็น Dict ปกติเพื่อให้ Library ของ Google ยอมรับได้ง่าย
         return dict(st.secrets["web"])
     
     # 2. ตรวจสอบจากไฟล์ Local JSON (สำหรับรันเครื่องตัวเอง)
@@ -209,7 +208,7 @@ def check_login():
     # จัดการกรณี Google ส่ง Auth Code กลับมาทาง URL (Callback)
     if st.query_params.get('code'):
         try:
-            # ครอบด้วย key "web" เพื่อให้ Library ยอมรับโครงสร้าง
+            # 🛡️ แก้ไขบั๊กจอแดง: ครอบด้วย key "web" เพื่อให้ Library ยอมรับ
             flow = Flow.from_client_config(
                 {"web": config}, 
                 scopes=SCOPES, 
@@ -228,8 +227,8 @@ def check_login():
         with col2:
             st.markdown("<br><br>", unsafe_allow_html=True)
             
-            # เริ่มสร้างโครงสร้าง HTML กล่อง Login
-            login_box_html = """<div class="login-container-box">"""
+            # 🛡️ แก้ไขบั๊กตัวหนังสือโค้ด: ประกอบ HTML เป็น String ก้อนเดียว
+            login_box_html = '<div class="login-container-box">'
             
             # ตรวจสอบและฝังโลโก้บริษัท
             if os.path.exists("logo.png"):
@@ -250,7 +249,7 @@ def check_login():
                 )
                 auth_url, _ = flow.authorization_url(prompt='consent')
                 
-                # ปุ่ม Login พร้อมโลโก้ Google ที่เสถียร (ดึงจาก Server Google โดยตรง)
+                # ปุ่ม Login พร้อมโลโก้ Google ที่เสถียร
                 login_box_html += f'''
                     <a href="{auth_url}" target="_self" class="google-btn">
                         <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" class="google-icon">
@@ -261,7 +260,8 @@ def check_login():
                 login_box_html += f'<p style="color: #d32f2f;">การตั้งค่าความปลอดภัยผิดพลาด: {e}</p>'
             
             login_box_html += "</div>"
-            # ใช้ st.markdown เพียงครั้งเดียวหลังประกอบ HTML เสร็จเพื่อป้องกันปัญหา Indentation
+            
+            # 🛡️ สำคัญ: เรียกใช้ markdown เพียงครั้งเดียวเพื่อป้องกันปัญหาการเยื้อง (Indentation)
             st.markdown(login_box_html, unsafe_allow_html=True)
         st.stop()
 
@@ -316,7 +316,7 @@ def highlight_pdf_content(pdf_file, data_list):
             if 0 <= page_index < len(document):
                 current_page = document[page_index]
                 
-                # ค้นหาข้อความ (ลองทั้งแบบปกติและแบบตัดช่องว่าง)
+                # ค้นหาข้อความ
                 hits = current_page.search_for(search_text)
                 if not hits:
                     hits = current_page.search_for(search_text.strip())
@@ -328,7 +328,6 @@ def highlight_pdf_content(pdf_file, data_list):
                         highlight.update()
                         
                         # 2. คำนวณตำแหน่งเขียนเลขข้อ (TOR No.)
-                        # ถ้ามีพื้นที่ด้านซ้ายพอให้เขียนด้านซ้าย ถ้าไม่พอให้เขียนด้านขวา
                         target_x = rect.x0 - 45 if rect.x0 > 50 else rect.x1 + 10
                         target_y = rect.y0 + 8
                         
@@ -337,7 +336,7 @@ def highlight_pdf_content(pdf_file, data_list):
                             fitz.Point(target_x, target_y), 
                             label, 
                             fontsize=9, 
-                            color=(1, 0, 0) # สีแดง Pure Red
+                            color=(1, 0, 0)
                         )
                     match_count += 1
         except Exception:
@@ -355,7 +354,6 @@ def highlight_pdf_content(pdf_file, data_list):
 
 # --- Sidebar Management ---
 with st.sidebar:
-    # แสดงโลโก้ใน Sidebar
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
     else:
@@ -364,36 +362,31 @@ with st.sidebar:
     st.markdown("---")
 
     # ข้อมูลโปรไฟล์ผู้ใช้งาน
-    st.image(st.session_state.user_picture, width=80)
+    if 'user_picture' in st.session_state:
+        st.image(st.session_state.user_picture, width=80)
     st.markdown(f"👤 **{st.session_state.user_name}**")
     st.caption(f"📧 {st.session_state.user_email}")
     st.success("✅ บัญชีได้รับการยืนยัน")
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # ปุ่มออกจากระบบ
     if st.button("🚪 Sign out (ออกจากระบบ)", type="secondary", use_container_width=True):
         st.session_state.credentials = None
         st.query_params.clear()
         st.rerun()
 
     st.markdown("---")
-    
-    # ปุ่มลิ้งก์ไป AI
     st.link_button("🧠 เปิด Gemini (Start AI Analysis)", GEMINI_LINK, type="primary", use_container_width=True)
     
     st.info("""
     **ขั้นตอนการใช้งาน:**
-    1. คลิกปุ่มด้านบนเพื่อวิเคราะห์ด้วย AI
-    2. ก๊อปปี้โค้ด `highlight_data = [...]` มา
-    3. วางโค้ดในช่องด้านขวา
-    4. อัปโหลดไฟล์แคตตาล็อก PDF
-    5. กดปุ่มเพื่อสร้างรายงาน
+    1. คลิกปุ่ม Gemini เพื่อวิเคราะห์
+    2. ก๊อปปี้โค้ดมาวาง
+    3. อัปโหลด PDF
+    4. กดปุ่มเริ่มประมวลผล
     """)
-    
-    st.caption("vFinal | Enterprise Solution")
 
-# --- ส่วนหัวของหน้าโปรแกรม (Hero Section) ---
+# --- ส่วนหัว (Hero Section) ---
 st.markdown("""
     <div class="hero-header">
         <div class="hero-title">📋 TOR Smart Auditor</div>
@@ -406,126 +399,49 @@ main_col1, main_col2 = st.columns([1, 1], gap="large")
 
 with main_col1:
     st.markdown("### 1️⃣ เตรียมข้อมูลตรวจสอบ")
-    st.info("นำข้อมูลที่ AI วิเคราะห์เสร็จแล้วมาวางที่นี่")
-    
     input_text = st.text_area(
         label="Input Area for AI Code", 
         height=350, 
-        placeholder="highlight_data = [\n  {'page': 0, 'text': '...', 'tor_no': '...'}, \n  ... \n]",
+        placeholder="highlight_data = [...]",
         label_visibility="collapsed"
     )
 
 with main_col2:
     st.markdown("### 2️⃣ อัปโหลดเอกสารต้นฉบับ")
-    st.markdown("เลือกไฟล์ Catalog PDF ที่ต้องการให้ระบบทำไฮไลท์")
-    
-    with st.container():
-        st.markdown("<br>", unsafe_allow_html=True)
-        pdf_file_upload = st.file_uploader(
-            "Upload Catalog PDF", 
-            type=["pdf"], 
-            label_visibility="collapsed"
-        )
-        
-        if pdf_file_upload:
-            st.success(f"✅ ไฟล์พร้อมสำหรับการประมวลผล: {pdf_file_upload.name}")
-        else:
-            # ส่วนแสดงภาพจำลองพื้นที่อัปโหลด
-            st.markdown("""
-                <div style="border: 2px dashed #ccc; padding: 60px; text-align: center; border-radius: 15px; color: #999;">
-                    <h1 style="margin:0;">📂</h1>
-                    ลากไฟล์ PDF มาวางที่นี่
-                </div>
-            """, unsafe_allow_html=True)
+    pdf_file_upload = st.file_uploader("Upload Catalog PDF", type=["pdf"], label_visibility="collapsed")
+    if pdf_file_upload:
+        st.success(f"✅ ไฟล์พร้อมใช้งาน: {pdf_file_upload.name}")
 
-# --- ส่วนการประมวลผลและแสดงผลลัพธ์ ---
+# --- ส่วนการประมวลผล ---
 st.markdown("<hr>", unsafe_allow_html=True)
-btn_col1, btn_col2, btn_col3 = st.columns([1, 2, 1])
-
-with btn_col2:
-    # ปุ่มเริ่มทำงาน (สีน้ำเงินไล่เฉดตาม CSS)
-    start_process = st.button("✨ เริ่มประมวลผลและสร้างรายงาน (Generate) ✨", type="primary")
-
-if start_process:
+if st.button("✨ เริ่มประมวลผลและสร้างรายงาน (Generate) ✨", type="primary"):
     if not input_text or not pdf_file_upload:
-        st.warning("⚠️ ข้อมูลไม่ครบ: กรุณาวางโค้ด AI และอัปโหลดไฟล์ PDF ให้เรียบร้อยก่อนครับ")
+        st.warning("⚠️ กรุณาวางโค้ด AI และอัปโหลดไฟล์ PDF ให้เรียบร้อย")
     else:
-        with st.spinner("🔄 ระบบกำลังวิเคราะห์ข้อมูลและเขียนไฟล์ PDF..."):
+        with st.spinner("🔄 กำลังประมวลผล..."):
             try:
-                # 1. จัดเตรียมข้อมูล (Data Formatting)
                 clean_str = input_text.strip()
                 if "=" in clean_str:
                     clean_str = clean_str.split("=", 1)[1].strip()
                 
-                # แปลงข้อความเป็น List วัตถุ Python
                 final_data_list = ast.literal_eval(clean_str)
                 
-                if isinstance(final_data_list, list) and len(final_data_list) > 0:
-                    
-                    # 2. สร้างรายงาน Excel (พร้อมปรับเลขหน้าให้มนุษย์อ่านง่าย +1)
+                if isinstance(final_data_list, list):
                     report_df = pd.DataFrame(final_data_list)
                     if 'page' in report_df.columns:
                         report_df['page'] = pd.to_numeric(report_df['page'], errors='coerce').fillna(0).astype(int) + 1
                     
-                    # เปลี่ยนชื่อหัวตารางให้เป็นทางการ
-                    mapping = {
-                        "tor_no": "ข้อที่ (TOR)", 
-                        "desc": "รายละเอียดเกณฑ์ TOR", 
-                        "text": "ข้อความที่พบในแคตตาล็อก", 
-                        "evidence": "ข้อความที่พบในแคตตาล็อก", 
-                        "page": "หน้าเอกสาร", 
-                        "status": "ผลการตรวจสอบ"
-                    }
-                    report_df.rename(columns=mapping, inplace=True)
-                    
-                    # เลือกเฉพาะคอลัมน์ที่จำเป็น
-                    valid_cols = ["ข้อที่ (TOR)", "รายละเอียดเกณฑ์ TOR", "ข้อความที่พบในแคตตาล็อก", "หน้าเอกสาร", "ผลการตรวจสอบ"]
-                    final_df = report_df[[c for c in valid_cols if c in report_df.columns]]
-                    
-                    # เขียนลง Memory Buffer
                     excel_out = io.BytesIO()
                     with pd.ExcelWriter(excel_out, engine='openpyxl') as writer:
-                        final_df.to_excel(writer, index=False)
+                        report_df.to_excel(writer, index=False)
                     
-                    # 3. เรียกฟังก์ชันไฮไลท์ PDF
                     pdf_result, total_highlights = highlight_pdf_content(pdf_file_upload, final_data_list)
                     
-                    # 4. แสดงผลลัพธ์ผ่าน UI
                     st.balloons()
-                    st.markdown(f"""
-                        <div class="success-box">
-                            <h3 style="margin-top:0;">🎉 การประมวลผลสำเร็จ!</h3>
-                            <p>ระบบตรวจสอบและทำไฮไลท์ข้อมูลได้ทั้งหมด <strong>{total_highlights} จุด</strong> ในไฟล์ PDF ของคุณ</p>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f'<div class="success-box">🎉 สำเร็จ! พบทั้งหมด {total_highlights} จุด</div>', unsafe_allow_html=True)
                     
-                    st.markdown("### 📥 ดาวน์โหลดเอกสารผลลัพธ์")
-                    down_col1, down_col2 = st.columns(2)
-                    
-                    with down_col1:
-                        st.download_button(
-                            label="📊 ดาวน์โหลดรายงาน Excel (Report)", 
-                            data=excel_out.getvalue(), 
-                            file_name="Audit_Compliance_Report.xlsx", 
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
-                            use_container_width=True
-                        )
-                        
-                    with down_col2:
-                        st.download_button(
-                            label="📕 ดาวน์โหลด PDF ที่ทำไฮไลท์แล้ว", 
-                            data=pdf_result.getvalue(), 
-                            file_name="Catalog_With_Highlights.pdf", 
-                            mime="application/pdf", 
-                            use_container_width=True
-                        )
-                    
-                    # แสดงตารางตัวอย่าง
-                    with st.expander("🔍 ดูตัวอย่างข้อมูลในรายงาน Excel"):
-                        st.dataframe(final_df, use_container_width=True)
-                        
-                else:
-                    st.error("❌ รูปแบบข้อมูลไม่ถูกต้อง: ต้องเป็น List [...] เท่านั้น (ลองตรวจสอบโค้ดที่ได้จาก Gemini อีกครั้ง)")
+                    d_col1, d_col2 = st.columns(2)
+                    d_col1.download_button("📊 Download Excel", excel_out.getvalue(), "Report.xlsx", use_container_width=True)
+                    d_col2.download_button("📕 Download PDF", pdf_result.getvalue(), "Checked.pdf", use_container_width=True)
             except Exception as error:
-                st.error(f"❌ เกิดข้อผิดพลาดทางเทคนิค: {error}")
-                st.info("💡 ข้อแนะนำ: ตรวจสอบว่าก๊อปปี้โค้ดมาจาก Gemini ครบถ้วนหรือไม่ (ต้องมีวงเล็บก้ามปูเปิดและปิด [])")
+                st.error(f"❌ เกิดข้อผิดพลาด: {error}")
