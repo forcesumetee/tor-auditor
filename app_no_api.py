@@ -41,21 +41,25 @@ SCOPES = [
 # ฟังก์ชันตรวจสอบ Config และ Redirect URI
 def get_google_config():
     """ดึงข้อมูล Config สำหรับ OAuth จาก Secrets (Cloud) หรือ JSON (Local)"""
+    # 1. ตรวจสอบใน Streamlit Secrets ก่อน (สำหรับ Cloud)
     if "web" in st.secrets:
-        return st.secrets["web"]
+        # แปลงจาก Streamlit Secret เป็น Dict ปกติเพื่อให้ Library ของ Google ยอมรับได้ง่าย
+        return dict(st.secrets["web"])
     
+    # 2. ตรวจสอบจากไฟล์ Local JSON (สำหรับรันเครื่องตัวเอง)
     if os.path.exists(CLIENT_SECRETS_FILE):
         with open(CLIENT_SECRETS_FILE, "r") as f:
             data = json.load(f)
             return data.get("web", data.get("installed"))
+    
     return None
 
-# ตรวจสอบ Environment เพื่อตั้งค่า Redirect URI (Local vs Cloud)
-config = get_google_config()
+# กำหนด Redirect URI ตามสภาพแวดล้อมที่รัน
+config_data = get_google_config()
 if os.getenv('STREAMLIT_SERVER_ADDRESS') == 'localhost' or os.getenv('STREAMLIT_SERVER_ADDRESS') is None:
     REDIRECT_URI = "http://localhost:8501"
 else:
-    # ดึงค่า Redirect URL จาก Secrets ที่ตั้งไว้บน Cloud (ถ้าไม่มีจะใช้ลิ้งก์มาตรฐานของคุณ)
+    # ดึงค่า Redirect URL จาก Secrets ที่ตั้งไว้บน Cloud (หากไม่มีจะใช้ค่ามาตรฐานของคุณ)
     if "web" in st.secrets and "redirect_url" in st.secrets["web"]:
         REDIRECT_URI = st.secrets["web"]["redirect_url"]
     else:
@@ -205,8 +209,9 @@ def check_login():
     # จัดการกรณี Google ส่ง Auth Code กลับมาทาง URL (Callback)
     if st.query_params.get('code'):
         try:
+            # ครอบด้วย key "web" เพื่อให้ Library ยอมรับโครงสร้าง
             flow = Flow.from_client_config(
-                config, 
+                {"web": config}, 
                 scopes=SCOPES, 
                 redirect_uri=REDIRECT_URI
             )
@@ -228,6 +233,7 @@ def check_login():
             
             # ตรวจสอบและฝังโลโก้บริษัท
             if os.path.exists("logo.png"):
+                import base64
                 with open("logo.png", "rb") as f:
                     encoded_img = base64.b64encode(f.read()).decode("utf-8")
                 login_box_html += f'<img src="data:image/png;base64,{encoded_img}" class="login-logo-img">'
@@ -239,13 +245,13 @@ def check_login():
             
             try:
                 flow = Flow.from_client_config(
-                    config, 
+                    {"web": config}, 
                     scopes=SCOPES, 
                     redirect_uri=REDIRECT_URI
                 )
                 auth_url, _ = flow.authorization_url(prompt='consent')
                 
-                # ปุ่ม Login พร้อมโลโก้ Google ที่เสถียร
+                # ปุ่ม Login พร้อมโลโก้ Google ที่เสถียร (ดึงจาก Server Google โดยตรง)
                 login_box_html += f'''
                     <a href="{auth_url}" target="_self" class="google-btn">
                         <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" class="google-icon">
