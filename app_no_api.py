@@ -27,168 +27,284 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# ลิ้งก์ Gemini Gem ของคุณ
 GEMINI_LINK = "https://gemini.google.com/gem/104gb9EOFpjtI6H3prcO76jchjc4DZE72?usp=sharing"
-SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']
 
+# --- ตั้งค่า Google OAuth ---
+CLIENT_SECRETS_FILE = "client_secret.json" 
+SCOPES = [
+    'openid', 
+    'https://www.googleapis.com/auth/userinfo.email', 
+    'https://www.googleapis.com/auth/userinfo.profile'
+]
+
+# ฟังก์ชันตรวจสอบ Config และ Redirect URI
 def get_google_config():
+    """ดึงข้อมูล Config สำหรับ OAuth จาก Secrets (Cloud) หรือ JSON (Local)"""
+    # 1. ตรวจสอบใน Streamlit Secrets ก่อน (สำหรับ Cloud)
     if "web" in st.secrets:
+        # แปลงจาก Streamlit Secret เป็น Dict ปกติเพื่อให้ Library ของ Google ยอมรับได้ง่าย
         return dict(st.secrets["web"])
-    if os.path.exists("client_secret.json"):
-        with open("client_secret.json", "r") as f:
+    
+    # 2. ตรวจสอบจากไฟล์ Local JSON (สำหรับรันเครื่องตัวเอง)
+    if os.path.exists(CLIENT_SECRETS_FILE):
+        with open(CLIENT_SECRETS_FILE, "r") as f:
             data = json.load(f)
             return data.get("web", data.get("installed"))
+    
     return None
 
-# ตั้งค่า Redirect URI
+# กำหนด Redirect URI ตามสภาพแวดล้อมที่รัน
 if os.getenv('STREAMLIT_SERVER_ADDRESS') == 'localhost' or os.getenv('STREAMLIT_SERVER_ADDRESS') is None:
     REDIRECT_URI = "http://localhost:8501"
 else:
-    REDIRECT_URI = "https://chinavut-marketing-tor-auditor.streamlit.app"
+    # ดึงค่า Redirect URL จาก Secrets ที่ตั้งไว้บน Cloud
+    if "web" in st.secrets and "redirect_url" in st.secrets["web"]:
+        REDIRECT_URI = st.secrets["web"]["redirect_url"]
+    else:
+        REDIRECT_URI = "https://chinavut-marketing-tor-auditor.streamlit.app"
 
-# --- Custom CSS ---
+
+# --- Custom CSS (ตกแต่งหน้าตาให้สวยงามและเป็นระเบียบ) ---
 st.markdown("""
 <style>
-    .stApp { background-color: #f8f9fa; font-family: 'Sarabun', sans-serif; }
+    /* ตั้งค่าฟอนต์และพื้นหลังหลัก */
+    .stApp { 
+        background-color: #f8f9fa; 
+        font-family: 'Sarabun', -apple-system, BlinkMacSystemFont, sans-serif; 
+    }
+    
+    /* Hero Header (ส่วนหัวสีน้ำเงิน) */
     .hero-header {
         background: linear-gradient(135deg, #1565c0 0%, #1e88e5 100%);
-        padding: 2rem; border-radius: 12px; color: white; text-align: center;
-        margin-bottom: 2rem; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        padding: 2rem; 
+        border-radius: 12px; 
+        color: white; 
+        text-align: center;
+        margin-bottom: 2rem; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
-    .hero-title { font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .hero-title { 
+        font-size: 2.5rem; 
+        font-weight: 700; 
+        margin-bottom: 0.5rem; 
+    }
+    .hero-subtitle { 
+        font-size: 1.1rem; 
+        opacity: 0.9; 
+        font-weight: 300; 
+    }
+
+    /* ปรับแต่งปุ่มกดทั่วไป (Primary) */
     .stButton > button[data-testid="baseButton-primary"] {
-        border-radius: 30px; font-weight: bold; height: 50px; width: 100%;
-        background: linear-gradient(90deg, #1e88e5 0%, #1565c0 100%); color: white; border: none;
+        border-radius: 30px; 
+        font-weight: bold; 
+        height: 50px;
+        background: linear-gradient(90deg, #1e88e5 0%, #1565c0 100%); 
+        color: white; 
+        border: none;
+        transition: all 0.3s ease; 
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        width: 100%;
+    }
+    .stButton > button[data-testid="baseButton-primary"]:hover {
+        transform: translateY(-2px); 
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        background: linear-gradient(90deg, #1565c0 0%, #0d47a1 100%);
+    }
+
+    /* ปรับแต่งปุ่มกดรอง (Logout / Secondary) */
+    .stButton > button[data-testid="baseButton-secondary"] {
+        border-radius: 30px; 
+        font-weight: bold; 
+        height: 45px;
+        border: 1px solid #d32f2f; 
+        color: #d32f2f; 
+        background-color: white;
+        transition: all 0.3s ease;
+    }
+    .stButton > button[data-testid="baseButton-secondary"]:hover {
+        background-color: #d32f2f; 
+        color: white;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 🔐 2. ระบบ Login (แก้ไขบั๊ก Indentation 100%)
+# 🔐 2. ส่วนจัดการระบบ Login (Google OAuth)
 # ==========================================
 def check_login():
+    """ฟังก์ชันหลักสำหรับตรวจสอบสถานะการเข้าสู่ระบบ"""
     config = get_google_config()
-    if not config:
-        st.error("❌ Configuration Error: ไม่พบการตั้งค่า OAuth ใน Secrets")
+    
+    if config is None:
+        st.error("❌ Configuration Error: ไม่พบการตั้งค่า OAuth กรุณาตรวจสอบไฟล์ JSON หรือ Secrets")
         st.stop()
 
     if 'credentials' not in st.session_state:
         st.session_state.credentials = None
 
+    # จัดการกรณี Google ส่ง Auth Code กลับมาทาง URL (Callback)
     if st.query_params.get('code'):
         try:
-            flow = Flow.from_client_config({"web": config}, scopes=SCOPES, redirect_uri=REDIRECT_URI)
+            # ครอบด้วย key "web" เพื่อให้ Library ยอมรับโครงสร้าง
+            flow = Flow.from_client_config(
+                {"web": config}, 
+                scopes=SCOPES, 
+                redirect_uri=REDIRECT_URI
+            )
             flow.fetch_token(code=st.query_params['code'])
             st.session_state.credentials = flow.credentials
+            # ล้าง URL query params ให้สะอาด
             st.query_params.clear()
         except Exception as e:
-            st.error(f"Login Error: {e}")
+            st.error(f"เกิดข้อผิดพลาดระหว่างกระบวนการ Login: {e}")
 
+    # กรณีที่ผู้ใช้ยังไม่ได้ Login หรือ Token หมดอายุ
     if not st.session_state.credentials:
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             st.markdown("<br><br>", unsafe_allow_html=True)
             
-            # --- สร้าง HTML String สำหรับปุ่ม Login ---
+            # --- สร้าง HTML แบบก้อนเดียวจบเพื่อป้องกันปัญหา Indentation ---
             try:
-                flow = Flow.from_client_config({"web": config}, scopes=SCOPES, redirect_uri=REDIRECT_URI)
+                flow = Flow.from_client_config(
+                    {"web": config}, 
+                    scopes=SCOPES, 
+                    redirect_uri=REDIRECT_URI
+                )
                 auth_url, _ = flow.authorization_url(prompt='consent')
                 
-                logo_html = ""
+                logo_base64 = ""
                 if os.path.exists("logo.png"):
                     with open("logo.png", "rb") as f:
-                        data = base64.b64encode(f.read()).decode("utf-8")
-                    logo_html = f'<img src="data:image/png;base64,{data}" style="max-width:180px; margin-bottom:20px;">'
-
-                # ใช้ Components HTML เพื่อวาดปุ่มแทน Markdown (แก้ปัญหา Indentation ถาวร)
-                login_ui = f"""
-                <div style="text-align: center; padding: 40px; background: white; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); font-family: sans-serif;">
-                    {logo_html}
-                    <h2 style="color: #0d47a1; margin-bottom: 10px;">Login System</h2>
-                    <p style="color: #666; margin-bottom: 30px;">กรุณาเข้าสู่ระบบด้วยบัญชี @chinavut.com</p>
-                    <a href="{auth_url}" target="_top" style="display: flex; align-items: center; justify-content: center; background-color: white; color: #3c4043; border: 1px solid #dadce0; border-radius: 8px; padding: 12px 24px; font-weight: 600; text-decoration: none; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                        logo_base64 = base64.b64encode(f.read()).decode("utf-8")
+                
+                # ประกอบ HTML ชุดเดียว เพื่อไม่ให้ Indentation ของ Python ขัดขวางการเรนเดอร์
+                login_html = f"""
+                <div style="text-align: center; padding: 40px; background: white; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); border: 1px solid #f0f0f0;">
+                    {"<img src='data:image/png;base64," + logo_base64 + "' style='max-width:220px; margin-bottom:30px;'>" if logo_base64 else ""}
+                    <h2 style="color: #0d47a1; margin-bottom: 8px; font-family: sans-serif;">🔐 Login System</h2>
+                    <p style="color: #5f6368; margin-bottom: 32px; font-family: sans-serif;">กรุณาเข้าสู่ระบบด้วยบัญชี Google ของบริษัท</p>
+                    <a href="{auth_url}" target="_top" style="display: flex; align-items: center; justify-content: center; background-color: white; color: #3c4043; border: 1px solid #dadce0; border-radius: 8px; padding: 12px 24px; font-weight: 600; text-decoration: none; font-family: 'Roboto', arial, sans-serif; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
                         <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" style="width:20px; margin-right:12px;">
                         Sign in with Google
                     </a>
                 </div>
                 """
-                st.components.v1.html(login_ui, height=450)
+                # บังคับวาดด้วย components เพื่อความปลอดภัยสูงสุดจากบั๊ก Indentation
+                st.components.v1.html(login_html, height=500)
                 
             except Exception as e:
-                st.error(f"UI Error: {e}")
+                st.error(f"UI Generation Error: {e}")
         st.stop()
 
+    # ตรวจสอบสิทธิ์ผู้ใช้หลัง Login สำเร็จ
     if st.session_state.credentials:
         try:
             service = build('oauth2', 'v2', credentials=st.session_state.credentials)
-            user = service.userinfo().get().execute()
-            if not user.get('email', '').endswith('@chinavut.com'):
-                st.error("🔒 อนุญาตเฉพาะบัญชี @chinavut.com")
-                if st.button("Logout"):
+            user_info = service.userinfo().get().execute()
+            user_email = user_info.get('email', '')
+            
+            # 🛡️ ระบบกรอง Domain: ต้องเป็นเมลบริษัทเท่านั้น
+            if not user_email.endswith('@chinavut.com'):
+                st.error(f"🔒 เข้าถึงไม่ได้: บัญชี {user_email} ไม่มีสิทธิ์ใช้งานเฉพาะ @chinavut.com")
+                if st.button("🔙 กลับไปหน้า Login"):
                     st.session_state.credentials = None
                     st.rerun()
                 st.stop()
-            st.session_state.user_email = user.get('email')
-            st.session_state.user_name = user.get('name')
-            st.session_state.user_picture = user.get('picture')
-        except:
+            
+            # บันทึกข้อมูล Session
+            st.session_state.user_email = user_email
+            st.session_state.user_name = user_info.get('name', 'User')
+            st.session_state.user_picture = user_info.get('picture', 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png')
+            
+        except Exception as e:
+            st.error(f"เซสชันหมดอายุหรือพบปัญหา: {e}")
             st.session_state.credentials = None
-            st.rerun()
+            if st.button("🔄 เข้าสู่ระบบอีกครั้ง"):
+                st.rerun()
+            st.stop()
 
+# --- ดำเนินการตรวจสอบ Login เป็นอันดับแรก ---
 check_login()
 
 # ==========================================
-# 3. ส่วนการประมวลผล (Logic)
+# 3. ส่วนการประมวลผล (PDF & Excel Logic)
 # ==========================================
 def highlight_pdf_content(pdf_file, data_list):
+    """ฟังก์ชันหลักสำหรับทำไฮไลท์ PDF และเขียนข้อกำกับ"""
     pdf_file.seek(0)
     document = fitz.open(stream=pdf_file.read(), filetype="pdf")
     match_count = 0
+    
     for entry in data_list:
         try:
             page_index = int(entry.get("page", 0))
             search_text = entry.get("text", entry.get("evidence", ""))
             label = str(entry.get("tor_no", ""))
+            
             if 0 <= page_index < len(document):
                 current_page = document[page_index]
                 hits = current_page.search_for(search_text) or current_page.search_for(search_text.strip())
-                for rect in hits:
-                    current_page.add_highlight_annot(rect).update()
-                    current_page.insert_text(fitz.Point(rect.x0 - 45 if rect.x0 > 50 else rect.x1 + 10, rect.y0 + 8), label, fontsize=9, color=(1, 0, 0))
-                if hits: match_count += 1
-        except: continue
+                
+                if hits:
+                    for rect in hits:
+                        highlight = current_page.add_highlight_annot(rect)
+                        highlight.update()
+                        target_x = rect.x0 - 45 if rect.x0 > 50 else rect.x1 + 10
+                        target_y = rect.y0 + 8
+                        current_page.insert_text(fitz.Point(target_x, target_y), label, fontsize=9, color=(1, 0, 0))
+                    match_count += 1
+        except:
+            continue
+            
     pdf_output = io.BytesIO()
     document.save(pdf_output)
     pdf_output.seek(0)
     return pdf_output, match_count
 
 # ==========================================
-# 4. User Interface
+# 4. User Interface (หน้าจอการทำงานหลัก)
 # ==========================================
+
 with st.sidebar:
-    if os.path.exists("logo.png"): st.image("logo.png", use_container_width=True)
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
     st.markdown("---")
     st.image(st.session_state.user_picture, width=80)
     st.markdown(f"👤 **{st.session_state.user_name}**")
-    if st.button("🚪 Sign out (ออกจากระบบ)", type="secondary", use_container_width=True):
+    st.caption(f"📧 {st.session_state.user_email}")
+    if st.button("🚪 Sign out", type="secondary", use_container_width=True):
         st.session_state.credentials = None
-        st.query_params.clear()
         st.rerun()
     st.markdown("---")
     st.link_button("🧠 เปิด Gemini Analysis", GEMINI_LINK, type="primary", use_container_width=True)
 
-st.markdown('<div class="hero-header"><div class="hero-title">📋 TOR Smart Auditor</div></div>', unsafe_allow_html=True)
-c1, c2 = st.columns([1, 1], gap="large")
+st.markdown("""
+    <div class="hero-header">
+        <div class="hero-title">📋 TOR Smart Auditor</div>
+        <div class="hero-subtitle">ระบบตรวจสอบสเปกสินค้า ทำไฮไลท์เอกสาร และสรุปผลอัตโนมัติ</div>
+    </div>
+""", unsafe_allow_html=True)
 
-with c1:
-    st.markdown("### 1️⃣ เตรียมข้อมูล")
-    input_text = st.text_area("Input Code", height=350, placeholder="highlight_data = [...]", label_visibility="collapsed")
+main_col1, main_col2 = st.columns([1, 1], gap="large")
 
-with c2:
-    st.markdown("### 2️⃣ อัปโหลดไฟล์")
-    pdf_file_upload = st.file_uploader("Upload PDF", type=["pdf"], label_visibility="collapsed")
+with main_col1:
+    st.markdown("### 1️⃣ เตรียมข้อมูลตรวจสอบ")
+    input_text = st.text_area("AI Code", height=350, placeholder="highlight_data = [...]", label_visibility="collapsed")
 
+with main_col2:
+    st.markdown("### 2️⃣ อัปโหลดเอกสารต้นฉบับ")
+    pdf_file_upload = st.file_uploader("Catalog PDF", type=["pdf"], label_visibility="collapsed")
+    if pdf_file_upload:
+        st.success(f"✅ ไฟล์พร้อมใช้งาน: {pdf_file_upload.name}")
+
+st.markdown("<hr>", unsafe_allow_html=True)
 if st.button("✨ เริ่มประมวลผล (Generate Report) ✨", type="primary"):
-    if input_text and pdf_file_upload:
+    if not input_text or not pdf_file_upload:
+        st.warning("⚠️ กรุณาวางโค้ด AI และอัปโหลดไฟล์ PDF ให้เรียบร้อย")
+    else:
         with st.spinner("🔄 กำลังประมวลผล..."):
             try:
                 clean_str = input_text.strip()
@@ -206,8 +322,9 @@ if st.button("✨ เริ่มประมวลผล (Generate Report) ✨"
                 pdf_res, total = highlight_pdf_content(pdf_file_upload, final_data_list)
                 
                 st.balloons()
-                st.markdown(f'<div style="padding:15px; background:#e8f5e9; border-radius:10px; color:#2e7d32;">🎉 สำเร็จ! พบทั้งหมด {total} จุด</div>', unsafe_allow_html=True)
-                d1, d2 = st.columns(2)
-                d1.download_button("📊 Download Excel", excel_out.getvalue(), "Report.xlsx", use_container_width=True)
-                d2.download_button("📕 Download PDF", pdf_res.getvalue(), "Checked.pdf", use_container_width=True)
-            except Exception as e: st.error(f"Error: {e}")
+                st.success(f"เสร็จสิ้น! พบ {total} จุด")
+                d_col1, d_col2 = st.columns(2)
+                d_col1.download_button("📊 Download Excel", excel_out.getvalue(), "Report.xlsx", use_container_width=True)
+                d_col2.download_button("📕 Download PDF", pdf_res.getvalue(), "Checked.pdf", use_container_width=True)
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
