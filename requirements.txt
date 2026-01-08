@@ -1,0 +1,6 @@
+streamlit
+pandas
+pymupdf
+openpyxl
+google-auth-oauthlib
+google-api-python-client
