@@ -55,6 +55,7 @@ def get_google_config():
     return None
 
 # กำหนด Redirect URI ตามสภาพแวดล้อมที่รัน
+config_to_use = get_google_config()
 if os.getenv('STREAMLIT_SERVER_ADDRESS') == 'localhost' or os.getenv('STREAMLIT_SERVER_ADDRESS') is None:
     REDIRECT_URI = "http://localhost:8501"
 else:
@@ -127,6 +128,17 @@ st.markdown("""
         background-color: #d32f2f; 
         color: white;
     }
+    
+    /* กล่องแจ้งเตือนความสำเร็จ */
+    .success-box {
+        padding: 1.5rem; 
+        background-color: #e8f5e9; 
+        border-radius: 10px;
+        border-left: 6px solid #4caf50; 
+        color: #2e7d32; 
+        margin-top: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -147,7 +159,7 @@ def check_login():
     # จัดการกรณี Google ส่ง Auth Code กลับมาทาง URL (Callback)
     if st.query_params.get('code'):
         try:
-            # ครอบด้วย key "web" เพื่อให้ Library ยอมรับโครงสร้าง
+            # 🛡️ แก้ไขโครงสร้างเพื่อให้ Library ยอมรับ
             flow = Flow.from_client_config(
                 {"web": config}, 
                 scopes=SCOPES, 
@@ -166,7 +178,7 @@ def check_login():
         with col2:
             st.markdown("<br><br>", unsafe_allow_html=True)
             
-            # --- สร้าง HTML แบบก้อนเดียวจบเพื่อป้องกันปัญหา Indentation ---
+            # --- 🛡️ แก้ไขบั๊กตัวหนังสือโค้ดโผล่ (Indentation Fix) ---
             try:
                 flow = Flow.from_client_config(
                     {"web": config}, 
@@ -175,28 +187,29 @@ def check_login():
                 )
                 auth_url, _ = flow.authorization_url(prompt='consent')
                 
+                # เตรียม Base64 Logo
                 logo_base64 = ""
                 if os.path.exists("logo.png"):
                     with open("logo.png", "rb") as f:
                         logo_base64 = base64.b64encode(f.read()).decode("utf-8")
                 
-                # ประกอบ HTML ชุดเดียว เพื่อไม่ให้ Indentation ของ Python ขัดขวางการเรนเดอร์
-                login_html = f"""
-                <div style="text-align: center; padding: 40px; background: white; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); border: 1px solid #f0f0f0;">
+                # ประกอบ HTML ชุดเดียวเพื่อใช้กับ st.components.v1.html (บังคับเรนเดอร์)
+                login_html_component = f"""
+                <div style="text-align: center; padding: 40px; background: white; border-radius: 24px; box-shadow: 0 15px 35px rgba(0,0,0,0.1); border: 1px solid #f0f0f0; font-family: sans-serif;">
                     {"<img src='data:image/png;base64," + logo_base64 + "' style='max-width:220px; margin-bottom:30px;'>" if logo_base64 else ""}
-                    <h2 style="color: #0d47a1; margin-bottom: 8px; font-family: sans-serif;">🔐 Login System</h2>
-                    <p style="color: #5f6368; margin-bottom: 32px; font-family: sans-serif;">กรุณาเข้าสู่ระบบด้วยบัญชี Google ของบริษัท</p>
-                    <a href="{auth_url}" target="_top" style="display: flex; align-items: center; justify-content: center; background-color: white; color: #3c4043; border: 1px solid #dadce0; border-radius: 8px; padding: 12px 24px; font-weight: 600; text-decoration: none; font-family: 'Roboto', arial, sans-serif; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                    <h2 style="color: #0d47a1; margin-bottom: 8px;">🔐 Login System</h2>
+                    <p style="color: #5f6368; margin-bottom: 32px;">กรุณาเข้าสู่ระบบด้วยบัญชี Google ของบริษัท</p>
+                    <a href="{auth_url}" target="_top" style="display: flex; align-items: center; justify-content: center; background-color: white; color: #3c4043; border: 1px solid #dadce0; border-radius: 8px; padding: 12px 24px; font-weight: 600; text-decoration: none; box-shadow: 0 1px 2px rgba(0,0,0,0.1); margin: 0 auto; max-width: 300px;">
                         <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" style="width:20px; margin-right:12px;">
                         Sign in with Google
                     </a>
                 </div>
                 """
-                # บังคับวาดด้วย components เพื่อความปลอดภัยสูงสุดจากบั๊ก Indentation
-                st.components.v1.html(login_html, height=500)
+                # บังคับแสดงผลด้วย Component เพื่อแก้ปัญหาช่องว่าง Indentation ของ Python
+                st.components.v1.html(login_html_component, height=500)
                 
             except Exception as e:
-                st.error(f"UI Generation Error: {e}")
+                st.error(f"การสร้างหน้า Login ผิดพลาด: {e}")
         st.stop()
 
     # ตรวจสอบสิทธิ์ผู้ใช้หลัง Login สำเร็จ
@@ -208,7 +221,7 @@ def check_login():
             
             # 🛡️ ระบบกรอง Domain: ต้องเป็นเมลบริษัทเท่านั้น
             if not user_email.endswith('@chinavut.com'):
-                st.error(f"🔒 เข้าถึงไม่ได้: บัญชี {user_email} ไม่มีสิทธิ์ใช้งานเฉพาะ @chinavut.com")
+                st.error(f"🔒 บัญชี {user_email} ไม่มีสิทธิ์ใช้งาน (อนุญาตเฉพาะ @chinavut.com)")
                 if st.button("🔙 กลับไปหน้า Login"):
                     st.session_state.credentials = None
                     st.rerun()
@@ -240,25 +253,40 @@ def highlight_pdf_content(pdf_file, data_list):
     
     for entry in data_list:
         try:
+            # เตรียมข้อมูลจาก List
             page_index = int(entry.get("page", 0))
             search_text = entry.get("text", entry.get("evidence", ""))
             label = str(entry.get("tor_no", ""))
             
+            # ตรวจสอบขอบเขตหน้า
             if 0 <= page_index < len(document):
                 current_page = document[page_index]
+                
+                # ค้นหาข้อความ
                 hits = current_page.search_for(search_text) or current_page.search_for(search_text.strip())
                 
                 if hits:
                     for rect in hits:
+                        # 1. วาดไฮไลท์สีเหลือง
                         highlight = current_page.add_highlight_annot(rect)
                         highlight.update()
+                        
+                        # 2. คำนวณตำแหน่งเขียนเลขข้อ
                         target_x = rect.x0 - 45 if rect.x0 > 50 else rect.x1 + 10
                         target_y = rect.y0 + 8
-                        current_page.insert_text(fitz.Point(target_x, target_y), label, fontsize=9, color=(1, 0, 0))
+                        
+                        # 3. เขียนข้อความสีแดงกำกับ
+                        current_page.insert_text(
+                            fitz.Point(target_x, target_y), 
+                            label, 
+                            fontsize=9, 
+                            color=(1, 0, 0)
+                        )
                     match_count += 1
-        except:
+        except Exception:
             continue
             
+    # บันทึกไฟล์ที่แก้ไขแล้ว
     pdf_output = io.BytesIO()
     document.save(pdf_output)
     pdf_output.seek(0)
@@ -268,19 +296,46 @@ def highlight_pdf_content(pdf_file, data_list):
 # 4. User Interface (หน้าจอการทำงานหลัก)
 # ==========================================
 
+# --- Sidebar Management ---
 with st.sidebar:
+    # แสดงโลโก้ใน Sidebar
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
+    else:
+        st.info("Chinavut Marketing")
+        
     st.markdown("---")
+
+    # ข้อมูลโปรไฟล์ผู้ใช้งาน
     st.image(st.session_state.user_picture, width=80)
     st.markdown(f"👤 **{st.session_state.user_name}**")
     st.caption(f"📧 {st.session_state.user_email}")
-    if st.button("🚪 Sign out", type="secondary", use_container_width=True):
+    st.success("✅ บัญชีได้รับการยืนยัน")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # ปุ่มออกจากระบบ
+    if st.button("🚪 Sign out (ออกจากระบบ)", type="secondary", use_container_width=True):
         st.session_state.credentials = None
+        st.query_params.clear()
         st.rerun()
-    st.markdown("---")
-    st.link_button("🧠 เปิด Gemini Analysis", GEMINI_LINK, type="primary", use_container_width=True)
 
+    st.markdown("---")
+    
+    # ปุ่มลิ้งก์ไป AI
+    st.link_button("🧠 เปิด Gemini (Start AI Analysis)", GEMINI_LINK, type="primary", use_container_width=True)
+    
+    st.info("""
+    **ขั้นตอนการใช้งาน:**
+    1. คลิกปุ่ม Gemini ด้านบนเพื่อวิเคราะห์
+    2. ก๊อปปี้โค้ดข้อมูลมาวางในช่อง 1
+    3. อัปโหลดไฟล์ PDF ในช่อง 2
+    4. กดปุ่มเริ่มประมวลผล
+    """)
+    
+    st.caption("vFinal | Enterprise Solution")
+
+# --- ส่วนหัวของหน้าโปรแกรม (Hero Section) ---
 st.markdown("""
     <div class="hero-header">
         <div class="hero-title">📋 TOR Smart Auditor</div>
@@ -288,43 +343,123 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# --- ส่วนของการรับข้อมูล (Main Content) ---
 main_col1, main_col2 = st.columns([1, 1], gap="large")
 
 with main_col1:
     st.markdown("### 1️⃣ เตรียมข้อมูลตรวจสอบ")
-    input_text = st.text_area("AI Code", height=350, placeholder="highlight_data = [...]", label_visibility="collapsed")
+    st.info("นำข้อมูลที่ AI วิเคราะห์เสร็จแล้วมาวางที่นี่")
+    
+    input_text = st.text_area(
+        label="Input Area for AI Code", 
+        height=350, 
+        placeholder="highlight_data = [\n  {'page': 0, 'text': '...', 'tor_no': '...'}, \n  ... \n]",
+        label_visibility="collapsed"
+    )
 
 with main_col2:
     st.markdown("### 2️⃣ อัปโหลดเอกสารต้นฉบับ")
-    pdf_file_upload = st.file_uploader("Catalog PDF", type=["pdf"], label_visibility="collapsed")
-    if pdf_file_upload:
-        st.success(f"✅ ไฟล์พร้อมใช้งาน: {pdf_file_upload.name}")
+    st.markdown("เลือกไฟล์ Catalog PDF ที่ต้องการให้ระบบทำไฮไลท์")
+    
+    with st.container():
+        st.markdown("<br>", unsafe_allow_html=True)
+        pdf_file_upload = st.file_uploader(
+            "Upload Catalog PDF", 
+            type=["pdf"], 
+            label_visibility="collapsed"
+        )
+        
+        if pdf_file_upload:
+            st.success(f"✅ ไฟล์พร้อมสำหรับการประมวลผล: {pdf_file_upload.name}")
+        else:
+            st.markdown("""
+                <div style="border: 2px dashed #ccc; padding: 60px; text-align: center; border-radius: 15px; color: #999;">
+                    <h1 style="margin:0;">📂</h1>
+                    ลากไฟล์ PDF มาวางที่นี่
+                </div>
+            """, unsafe_allow_html=True)
 
+# --- ส่วนการประมวลผลและแสดงผลลัพธ์ ---
 st.markdown("<hr>", unsafe_allow_html=True)
-if st.button("✨ เริ่มประมวลผล (Generate Report) ✨", type="primary"):
+btn_col1, btn_col2, btn_col3 = st.columns([1, 2, 1])
+
+with btn_col2:
+    start_process = st.button("✨ เริ่มประมวลผลและสร้างรายงาน (Generate) ✨", type="primary")
+
+if start_process:
     if not input_text or not pdf_file_upload:
-        st.warning("⚠️ กรุณาวางโค้ด AI และอัปโหลดไฟล์ PDF ให้เรียบร้อย")
+        st.warning("⚠️ ข้อมูลไม่ครบ: กรุณาวางโค้ด AI และอัปโหลดไฟล์ PDF")
     else:
-        with st.spinner("🔄 กำลังประมวลผล..."):
+        with st.spinner("🔄 ระบบกำลังวิเคราะห์ข้อมูลและเขียนไฟล์ PDF..."):
             try:
+                # 1. จัดเตรียมข้อมูล
                 clean_str = input_text.strip()
-                if "=" in clean_str: clean_str = clean_str.split("=", 1)[1].strip()
+                if "=" in clean_str:
+                    clean_str = clean_str.split("=", 1)[1].strip()
+                
                 final_data_list = ast.literal_eval(clean_str)
                 
-                report_df = pd.DataFrame(final_data_list)
-                if 'page' in report_df.columns:
-                    report_df['page'] = pd.to_numeric(report_df['page'], errors='coerce').fillna(0).astype(int) + 1
-                
-                excel_out = io.BytesIO()
-                with pd.ExcelWriter(excel_out, engine='openpyxl') as writer:
-                    report_df.to_excel(writer, index=False)
-                
-                pdf_res, total = highlight_pdf_content(pdf_file_upload, final_data_list)
-                
-                st.balloons()
-                st.success(f"เสร็จสิ้น! พบ {total} จุด")
-                d_col1, d_col2 = st.columns(2)
-                d_col1.download_button("📊 Download Excel", excel_out.getvalue(), "Report.xlsx", use_container_width=True)
-                d_col2.download_button("📕 Download PDF", pdf_res.getvalue(), "Checked.pdf", use_container_width=True)
-            except Exception as e:
-                st.error(f"❌ Error: {e}")
+                if isinstance(final_data_list, list) and len(final_data_list) > 0:
+                    
+                    # 2. สร้างรายงาน Excel
+                    report_df = pd.DataFrame(final_data_list)
+                    if 'page' in report_df.columns:
+                        report_df['page'] = pd.to_numeric(report_df['page'], errors='coerce').fillna(0).astype(int) + 1
+                    
+                    mapping = {
+                        "tor_no": "ข้อที่ (TOR)", 
+                        "desc": "รายละเอียดเกณฑ์ TOR", 
+                        "text": "ข้อความที่พบในแคตตาล็อก", 
+                        "evidence": "ข้อความที่พบในแคตตาล็อก", 
+                        "page": "หน้าเอกสาร", 
+                        "status": "ผลการตรวจสอบ"
+                    }
+                    report_df.rename(columns=mapping, inplace=True)
+                    
+                    valid_cols = ["ข้อที่ (TOR)", "รายละเอียดเกณฑ์ TOR", "ข้อความที่พบในแคตตาล็อก", "หน้าเอกสาร", "ผลการตรวจสอบ"]
+                    final_df = report_df[[c for c in valid_cols if c in report_df.columns]]
+                    
+                    excel_out = io.BytesIO()
+                    with pd.ExcelWriter(excel_out, engine='openpyxl') as writer:
+                        final_df.to_excel(writer, index=False)
+                    
+                    # 3. เรียกฟังก์ชันไฮไลท์ PDF
+                    pdf_result, total_highlights = highlight_pdf_content(pdf_file_upload, final_data_list)
+                    
+                    # 4. แสดงผลลัพธ์
+                    st.balloons()
+                    st.markdown(f"""
+                        <div class="success-box">
+                            <h3 style="margin-top:0;">🎉 การประมวลผลสำเร็จ!</h3>
+                            <p>ระบบตรวจสอบและทำไฮไลท์ข้อมูลได้ทั้งหมด <strong>{total_highlights} จุด</strong> ในไฟล์ PDF ของคุณ</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    st.markdown("### 📥 ดาวน์โหลดเอกสารผลลัพธ์")
+                    down_col1, down_col2 = st.columns(2)
+                    
+                    with down_col1:
+                        st.download_button(
+                            label="📊 ดาวน์โหลดรายงาน Excel (Report)", 
+                            data=excel_out.getvalue(), 
+                            file_name="Audit_Compliance_Report.xlsx", 
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+                            use_container_width=True
+                        )
+                        
+                    with down_col2:
+                        st.download_button(
+                            label="📕 ดาวน์โหลด PDF ที่ทำไฮไลท์แล้ว", 
+                            data=pdf_result.getvalue(), 
+                            file_name="Catalog_With_Highlights.pdf", 
+                            mime="application/pdf", 
+                            use_container_width=True
+                        )
+                    
+                    with st.expander("🔍 ดูตัวอย่างข้อมูลในรายงาน Excel"):
+                        st.dataframe(final_df, use_container_width=True)
+                        
+                else:
+                    st.error("❌ รูปแบบข้อมูลไม่ถูกต้อง")
+            except Exception as error:
+                st.error(f"❌ เกิดข้อผิดพลาดทางเทคนิค: {error}")
